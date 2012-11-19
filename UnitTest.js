@@ -48,11 +48,11 @@ var UnitTest = function () {
 
         // テストリストの作成
         for (testName in this) {
-            if (/^\d/.test(test)) {
-                testList.push(test);
+            if (/^\d/.test(testName)) {
+                testList.push(testName);
             }
         }
-        testCount = testList.length();
+        testCount = testList.length;
 
         testList.sort(function (a,b) {
                           var
