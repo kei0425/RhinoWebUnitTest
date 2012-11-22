@@ -4,11 +4,12 @@ importPackage(org.openqa.selenium.firefox);
 importPackage(org.openqa.selenium.support.ui);
 
 var CrossTest = function (params) {
+    var self = this;
     params = params || {};
     /**
      * タイムアウト
      */
-    this.timeout = params.timeout || 30;
+    this.timeout = params.timeout || 5;
     /**
      * ドライバー
      */
@@ -17,34 +18,30 @@ var CrossTest = function (params) {
      * ベースURL
      */
     this.baseUrl = params.baseUrl || 'http://test-cross3.nikkei-r.local/develop';
-
+    /**
+     * wait
+     */
     this.wait = new WebDriverWait(this.driver, this.timeout);
 
-    this.elements = {
-        "集計設定セット選択" : {
-            by : {ByXPath : "//div[@id='MB_frame']"},
-            "テスト01" : {
-//                by : {ByXPath : "//tr[4]/td[2]"}
-                by : {ByXPath : "//td[text()='テスト01']"}
-            },
-            "OK" : {
-                by : {ByXPath : "//input[@value=' O K ']"}
-            }
-        },
-        "合成変数タブ" : {
-            by : {ByLinkText : "合成変数" }
-        },
-        "合成変数一覧" : {
-            by : {ByXPath : "//div[@id='gousei_content']"},
-            "qv_xq10_1" : {
-                by : {ByXPath : "//td[text()='gv_xq10_1']"}
-            },
-            "削除" : {
-                by : {ByXPath : "//input[@id='del_gousei_valiable]"}
-            },
-            "編集" : {
-                by : {ByXPath : "//input[@id='edit_gousei_valiable]"}
-            }
+    // テスト読み込み
+    this.loadTest = function (path) {
+        var
+        testJson
+        ,testName
+        ;
+
+        eval('testJson = ' + readFile(path));
+
+        this.elements = testJson.initialize.elements;
+        this.baseUrl = testJson.initialize.baseUrl;
+        this.testPattern = testJson.test;
+        for (testName in testJson.test) {
+            this[testName] = function(name) {
+                return function () {
+                    print('実行:' + name);
+                    self.executeTest(name);
+                };
+            }(testName);
         }
     };
 
@@ -73,9 +70,8 @@ var CrossTest = function (params) {
                 by = By.ByLinkText(element.by.ByLinkText);
             }
             // 見つかるまで待つ
-            element.element = new WebDriverWait(
-                this.driver, this.timeout).until(
-                    ExpectedConditions.presenceOfElementLocated(by));
+            element.element = this.wait.until(
+                ExpectedConditions.presenceOfElementLocated(by));
 
             if (!element.by.ByXPath) {
                 // XPath指定作成
@@ -91,15 +87,96 @@ var CrossTest = function (params) {
         // エレメントを返す
         return element.element;
     };
+    // テスト実行
+    this.executeTest = function (testName) {
+        var
+        testList = self.testPattern[testName]
+        ,testData
+        ,i
+        ,status
+        ,message
+        ;
 
-    this.setUp = function () {
-        // DB初期化
-        this.driver.get(this.baseUrl + '/api/cross-lab/cross/tool?dbname=crosstesttemplatedb');
-        // トップページ
-        this.driver.get(this.baseUrl + '/cross-lab/top?enq_id=906');
-        // 集計セット選択
-        this.getElement("集計設定セット選択/テスト01").click();
-        this.getElement("集計設定セット選択/OK").click();
+        for (i = 0; i < testList.length; i++) {
+            testData = testList[i];
+            try {
+                if (this[testData.command[0]]) {
+                    // コマンド実行
+                    this[testData.command[0]](testData);
+                }
+                else {
+                    throw new Error('unknown command ' + testData.command[0]);
+                }
+                status = 'ok';
+                message = '';
+            } catch (x) {
+                status = 'not ok';
+                message = ' ' + x.message;
+            }
+
+            print (status + ' - ' + testData.comment + message);
+        }
+    };
+
+    // コマンド一覧
+    this.open = function (testData) {
+        this.driver.get(this.baseUrl + testData.command[1]);
+    };
+    this.click = function (testData) {
+        this.getElement(testData.command[1]).click();
+    };
+    this.quit = function (testData) {
+        this.driver.quit();
+    };
+    this.isEnabled = function (testData) {
+        var element = this.getElement(testData.command[1]);
+        try {
+            this.wait.until(
+                new com.google.common.base.Function(
+                    {apply : function () {
+                         if (element.isEnabled() == testData.command[2]) {
+                             return true;
+                         }
+                         return null;
+                     }
+                    }));
+        } catch (x) {
+
+        }
+        this.assertEquals(element.isEnabled(),
+                          testData.command[2]);
+    };
+    this.alert = function (testData) {
+        // アラートがでるまで待つ
+        var alert = this.wait.until(ExpectedConditions.alertIsPresent());
+        if (testData.command[2]) {
+            this.assertEquals(alert.getText(),
+                              testData.command[2]);
+        }
+        if (testData.command[1]) {
+            alert.accept();
+        }
+        else {
+            alert.dismiss();
+        }
+    };
+    this.getText = function (testData) {
+        var element = this.getElement(testData.command[1]);
+        try {
+            this.wait.until(
+                new com.google.common.base.Function(
+                    {apply : function () {
+                         if (element.getText() == testData.command[2]) {
+                             return true;
+                         }
+                         return null;
+                     }
+                    }));
+        } catch (x) {
+
+        }
+        this.assertEquals(element.getText(),
+                          testData.command[2]);
     };
 };
 CrossTest.prototype = new UnitTest();

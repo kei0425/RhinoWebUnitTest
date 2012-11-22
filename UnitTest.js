@@ -26,10 +26,25 @@ var UnitTest = function () {
     /**
      * アサートイコール
      */
-    this.assertEquals = function (message, expect, result) {
+    this.assertEquals = function () {
+        var
+        message,
+        expect,
+        result
+        ;
+        if (arguments.length == 2) {
+            message = '';
+            expect = arguments[0];
+            result = arguments[1];
+        }
+        else {
+            message = arguments[0];
+            expect = arguments[1];
+            result = arguments[2];
+        }
         return this.assert(message + "\nexpect : " + expect
                            + "\nresult : " + result,
-                           expect === result);
+                           expect == result);
     };
     /**
      * テスト実行
